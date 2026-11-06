@@ -47,10 +47,10 @@ nav button.on{color:var(--t);background:var(--t2)}
 <script>
 const $=s=>document.querySelector(s);
 const LS=(()=>{try{return localStorage}catch(e){return{}}})();
-let S={url:LS.u||'',pin:LS.p||''};
+let S={url:LS.u||'',pin:LS.p||'',nama:LS.n||''};
 let D;try{D=JSON.parse(LS.d)}catch(e){}
 D=D||{in:[],out:[],kat:{in:[],out:[]},dom:[]};
-let V=S.url&&S.pin?'home':'set',F='month',C={a:'',b:''},TP='out',ED=null,QS='',LAST={},CH=Promise.resolve();
+let V=S.url&&S.pin&&S.nama?'home':'set',WHO='me',F='month',C={a:'',b:''},TP='out',ED=null,QS='',LAST={},CH=Promise.resolve();
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const today=()=>iso(new Date());
 const rp=n=>(n<0?'-':'')+'Rp '+Math.abs(Math.round(n)).toLocaleString('id-ID');
@@ -78,26 +78,29 @@ function rng(){
   return a>b?[b,a]:[a,b];
 }
 const inR=(x,a,b)=>x.tgl>=a&&x.tgl<=b;
+const mine=l=>l.filter(x=>WHO=='all'||(WHO=='me'?x.own===S.nama:x.own===WHO));
+const owners=()=>[...new Set([...D.in,...D.out].map(x=>x.own).filter(o=>o&&o!==S.nama))];
+const whoBar=()=>`<div class="seg">${[['me',S.nama||'Saya'],...owners().map(n=>[n,n]),['all','Semua']].map(([k,l])=>`<button data-w="${esc(k)}" class="${WHO==k?'on':''}">${esc(l)}</button>`).join('')}</div><div style="height:8px"></div>`;
 
 function home(){
-  const[a,b]=rng(),I=D.in.filter(x=>inR(x,a,b)),O=D.out.filter(x=>inR(x,a,b)),ti=sum(I),to=sum(O);
+  const[a,b]=rng(),I=mine(D.in).filter(x=>inR(x,a,b)),O=mine(D.out).filter(x=>inR(x,a,b)),ti=sum(I),to=sum(O);
   const days=Math.round((new Date(b)-new Date(a))/864e5)+1;
   const pb=new Date(a+'T00:00:00');pb.setDate(pb.getDate()-1);const pa=new Date(pb);pa.setDate(pa.getDate()-days+1);
-  const po=sum(D.out.filter(x=>inR(x,iso(pa),iso(pb))));
+  const po=sum(mine(D.out).filter(x=>inR(x,iso(pa),iso(pb))));
   const bk={};O.forEach(x=>bk[x.kat]=(bk[x.kat]||0)+x.jml);
   const cats=Object.entries(bk).sort((p,q)=>q[1]-p[1]);
   let acc=0;const stops=cats.map(([k,v],i)=>{const s=acc/to*100;acc+=v;return COL[Math.min(i,COL.length-1)]+' '+s+'% '+acc/to*100+'%'}).join(',');
   const n=Math.min(days,14),e=new Date(b+'T00:00:00'),bd=[];
   for(let i=n-1;i>=0;i--){const d=new Date(e);d.setDate(e.getDate()-i);const k=iso(d);bd.push([k,sum(O.filter(x=>x.tgl===k))])}
   const mx=Math.max(1,...bd.map(x=>x[1]));
-  const wal=D.dom.map(w=>[w,sum(D.in.filter(x=>x.dom===w))-sum(D.out.filter(x=>x.dom===w))]);
+  const wal=D.dom.map(w=>[w,sum(mine(D.in).filter(x=>x.dom===w))-sum(mine(D.out).filter(x=>x.dom===w))]);
   const ins=[];
   if(cats.length)ins.push(`Pengeluaran terbesar: <b>${esc(cats[0][0])}</b> (${Math.round(cats[0][1]/to*100)}% dari total).`);
   if(to)ins.push(`Rata-rata pengeluaran ${rp(to/days)} per hari.`);
   if(po&&to)ins.push(`Pengeluaran ${to>po?'naik':'turun'} ${Math.abs(Math.round((to-po)/po*100))}% dibanding periode sebelumnya.`);
   if(ti&&to)ins.push(ti>=to?`Anda menyisihkan ${Math.round((ti-to)/ti*100)}% dari pemasukan.`:'Pengeluaran melebihi pemasukan pada periode ini.');
   const none=!D.in.length&&!D.out.length;
-  return `<h1>Keuangan</h1>
+  return `<h1>Keuangan</h1>${whoBar()}
   <div class="seg">${[['day','Hari ini'],['week','Minggu ini'],['month','Bulan ini'],['custom','Kustom']].map(([k,l])=>`<button data-f="${k}" class="${F==k?'on':''}">${l}</button>`).join('')}</div>
   ${F=='custom'?`<div class="row" style="margin-top:8px"><input type="date" id="ca" value="${a}"><input type="date" id="cb" value="${b}"></div>`:''}
   <div class="card" style="margin-top:12px"><div class="mut">Selisih periode</div><div class="big ${ti>=to?'in':'out'}">${rp(ti-to)}</div>
@@ -134,33 +137,33 @@ async function save(){
   if(!dom)return toast('Belum ada dompet. Tambahkan di Atur.',1);
   if(!tgl)return toast('Pilih tanggal',1);
   const wasEdit=!!ED,btn=$('#save');btn.disabled=true;btn.textContent='Menyimpan…';
-  const ok=await run(wasEdit?{a:'upd',t,id:ED.id,tgl,jml,kat,dom,cat}:{a:'add',t,tgl,jml,kat,dom,cat},wasEdit?'Perubahan tersimpan':'Transaksi tersimpan');
+  const ok=await run(wasEdit?{a:'upd',t,id:ED.id,tgl,jml,kat,dom,cat,own:S.nama}:{a:'add',t,tgl,jml,kat,dom,cat,own:S.nama},wasEdit?'Perubahan tersimpan':'Transaksi tersimpan');
   if(ok){LAST[t+'k']=kat;LAST[t+'d']=dom;if(wasEdit){ED=null;V='hist'}}
   render();if(ok&&!wasEdit)$('#jml')&&$('#jml').focus();
 }
 async function del(){
   if(!confirm('Hapus transaksi ini? Tindakan ini tidak bisa dibatalkan.'))return;
-  if(await run({a:'del',t:ED.t,id:ED.id},'Transaksi dihapus')){ED=null;V='hist'}
+  if(await run({a:'del',t:ED.t,id:ED.id,own:S.nama},'Transaksi dihapus')){ED=null;V='hist'}
   render();
 }
 
 function items(){
   const q=QS.toLowerCase();
-  const L=[...D.out.map(x=>({...x,t:'out'})),...D.in.map(x=>({...x,t:'in'}))]
-    .filter(x=>!q||[x.kat,x.cat,x.dom,x.jml,x.tgl,fd(x.tgl)].join(' ').toLowerCase().includes(q))
+  const L=[...mine(D.out).map(x=>({...x,t:'out'})),...mine(D.in).map(x=>({...x,t:'in'}))]
+    .filter(x=>!q||[x.kat,x.cat,x.dom,x.jml,x.tgl,fd(x.tgl),x.own].join(' ').toLowerCase().includes(q))
     .sort((p,r)=>r.tgl.localeCompare(p.tgl)).slice(0,200);
   if(!L.length)return `<div class="empty">${q?'Tidak ada transaksi yang cocok.':'Belum ada transaksi.'}</div>`;
-  return L.map(x=>`<div class="it" data-id="${esc(x.id)}" data-t="${x.t}"><div style="min-width:0"><b>${esc(x.kat)}</b>
-    <div class="mut">${fd(x.tgl)} · ${esc(x.dom)}${x.cat?' · '+esc(x.cat):''}</div></div>
+  return L.map(x=>`<div class="it" data-id="${esc(x.id)}" data-t="${x.t}" data-own="${esc(x.own||'')}"><div style="min-width:0"><b>${esc(x.kat)}</b>
+    <div class="mut">${fd(x.tgl)} · ${esc(x.dom)}${x.cat?' · '+esc(x.cat):''}${WHO=='all'&&x.own?' · '+esc(x.own):''}</div></div>
     <b class="${x.t}" style="white-space:nowrap">${x.t=='in'?'+':'-'}${rp(x.jml)}</b></div>`).join('');
 }
-const hist=()=>`<h1>Riwayat</h1><input id="q" type="search" placeholder="Cari kategori, catatan, dompet…" value="${esc(QS)}"><div class="card" id="list" style="margin-top:12px">${items()}</div>`;
+const hist=()=>`<h1>Riwayat</h1>${whoBar()}<input id="q" type="search" placeholder="Cari kategori, catatan, dompet…" value="${esc(QS)}"><div class="card" id="list" style="margin-top:12px">${items()}</div>`;
 
 function setv(){
   const chips=(arr,a,tp)=>arr.map(n=>`<span class="chip">${esc(n)}<b data-x="${a}" data-tipe="${tp||''}" data-n="${esc(n)}" role="button" aria-label="Hapus ${esc(n)}">×</b></span>`).join('')||'<span class="mut">Belum ada</span>';
   const add=(a,tp,ph)=>`<div class="row" style="margin-top:8px"><input id="n-${a}${tp?'-'+tp:''}" placeholder="${ph}"><button class="g" data-add="${a}" data-tipe="${tp||''}">Tambah</button></div>`;
   return `<h1>Pengaturan</h1>
-  <div class="card"><b>Koneksi</b><label>URL API (Apps Script)</label><input id="url" value="${esc(S.url)}" placeholder="https://script.google.com/macros/s/.../exec" autocapitalize="off" autocorrect="off">
+  <div class="card"><b>Koneksi</b><label>Nama saya (mis. Rizky)</label><input id="nama" maxlength="20" value="${esc(S.nama)}"><label>URL API (Apps Script)</label><input id="url" value="${esc(S.url)}" placeholder="https://script.google.com/macros/s/.../exec" autocapitalize="off" autocorrect="off">
     <label>PIN</label><input id="pin" type="password" inputmode="numeric" value="${esc(S.pin)}"><button id="conn" style="width:100%;margin-top:12px">Simpan dan sinkronkan</button></div>
   <div class="card"><b>Kategori pengeluaran</b><div>${chips(D.kat.out,'kat','out')}</div>${add('kat','out','Kategori baru')}</div>
   <div class="card"><b>Kategori pemasukan</b><div>${chips(D.kat.in,'kat','in')}</div>${add('kat','in','Kategori baru')}</div>
@@ -184,11 +187,12 @@ document.addEventListener('click',async e=>{
   else if(el.id=='save')save();
   else if(el.id=='del')del();
   else if(el.id=='cancel'){ED=null;V='hist';render()}
-  else if(d.id){ED={t:d.t,id:d.id};V='add';render()}
+  else if(d.w){WHO=d.w;render()}
+  else if(d.id){if(d.own&&d.own!==S.nama)return toast('Dicatat oleh '+d.own+'. Hanya pencatatnya yang bisa mengubah.',1);ED={t:d.t,id:d.id};V='add';render()}
   else if(el.id=='conn'){
-    S.url=$('#url').value.trim();S.pin=$('#pin').value.trim();
-    if(!/^https:\/\/script\.google\.com\//.test(S.url)||!S.pin)return toast('Isi URL API (diawali https://script.google.com/) dan PIN',1);
-    try{LS.u=S.url;LS.p=S.pin}catch(x){}
+    S.url=$('#url').value.trim();S.pin=$('#pin').value.trim();S.nama=$('#nama').value.trim();
+    if(!/^https:\/\/script\.google\.com\//.test(S.url)||!S.pin||!S.nama)return toast('Isi nama, URL API (diawali https://script.google.com/), dan PIN',1);
+    try{LS.u=S.url;LS.p=S.pin;LS.n=S.nama}catch(x){}
     el.disabled=true;el.textContent='Menyinkronkan…';
     if(await run({a:'all'},'Terhubung ke Google Sheets'))V='home';render();
   }
